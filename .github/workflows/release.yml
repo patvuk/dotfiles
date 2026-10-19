@@ -1,0 +1,37 @@
+name: release
+
+on:
+  push:
+    tags: ["*.*.*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Package
+        run: |
+          shared=(setup.sh vim/vimrc nvim/dotfiles.lua mise/mise.toml zed/settings.json zed/keymap.json helix/languages.toml topgrade/topgrade.toml)
+          macos=("${shared[@]}" zsh/zshrc_arm64mac iterm2/iterm2.plist)
+          linux=("${shared[@]}" zsh/zshrc_x86linux zsh/omarchy.zsh omarchy/omarchy-debloat.sh)
+
+          stage() {
+              rm -rf stage && mkdir -p stage/dotfiles
+              cp --parents "$@" stage/dotfiles/
+          }
+
+          mkdir -p dist
+          stage "${macos[@]}" && tar -C stage -czf "dist/dotfiles-macos-arm64.tar.gz" dotfiles
+          stage "${linux[@]}" && tar -C stage -czf "dist/dotfiles-linux-x86_64.tar.gz" dotfiles
+          stage windows/setup.ps1 && (cd stage && zip -qr ../dist/dotfiles-windows.zip dotfiles)
+
+          for f in dist/*; do echo "== $f"; case "$f" in *.zip) unzip -l "$f" ;; *) tar -tzvf "$f" ;; esac; done
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --generate-notes
