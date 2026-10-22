@@ -56,6 +56,12 @@ These follow Zed's vim mode. Without a language server, `gd` is Vim's own.
 | `K` | Hover |
 | `g]` / `g[`, `]d` / `[d` | Next / previous diagnostic |
 
+## Git
+
+| Key | Action |
+| --- | --- |
+| `<Space>gb` | Blame the whole file in a split on the left. `q` closes it |
+
 ## Toggles
 
 | Key | Action |

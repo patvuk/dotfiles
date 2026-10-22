@@ -320,6 +320,8 @@ if vim.pack and not package.loaded.lazy then
     config.current_line_blame_opts = { delay = 300 }
     config.current_line_blame_formatter = '    <author>, <author_time:%R> • <summary>'
     gitsigns.toggle_current_line_blame(true)
+
+    vim.keymap.set('n', '<leader>gb', '<cmd>Gitsigns blame<CR>', { desc = '[G]it [B]lame file' })
   end
 
   local themes = { dark = 'kanagawa-wave', light = 'dayfox' }
