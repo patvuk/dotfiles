@@ -17,9 +17,10 @@
 ## Neovim
 
 `setup.sh` installs kickstart.nvim only when `~/.config/nvim` does not exist.
-On Omarchy, that directory holds Omarchy's LazyVim, so it is kept. To use
-kickstart there, run the debloat `nvim` group, which moves LazyVim to
-`~/.config/nvim.omarchy.bak.<timestamp>`, and then run `setup.sh` again.
+On Omarchy, that directory holds Omarchy's LazyVim. The debloat `nvim` group
+(a default) moves it to `~/.config/nvim.omarchy.bak.<timestamp>` when you
+have not changed it, and keeps it when you have. See
+[omarchy.md](omarchy.md#running-it-again).
 
 Every run copies `nvim/dotfiles.lua` to `~/.config/nvim/plugin/dotfiles.lua`,
 which loads after `init.lua`. It mirrors the Vim settings above: relative line

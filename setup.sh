@@ -104,7 +104,7 @@ collect_inputs() {
     fi
 
     if ((ask_debloat)); then
-        echo "Omarchy debloat: 'default' (apps webapps agents), 'all', 'skip', or a group list."
+        echo "Omarchy debloat: 'default' (apps webapps agents nvim), 'all', 'skip', or a group list."
         DEBLOAT_GROUPS="$(ask "Debloat groups" "$DEBLOAT_GROUPS")"
     fi
 
@@ -735,13 +735,16 @@ EOF
 install_debloat_hook() {
     have omarchy-hook-install || return 0
     info "Omarchy post-update hook (re-applies the debloat)"
-    local dir
+
+    local dir script
     dir="$(mktemp -d)"
+    script="$(printf %q "$DOTFILES_DIR/omarchy/omarchy-debloat.sh")"
     cat >"$dir/dotfiles-debloat" <<EOF
 #!/bin/bash
-# Installed by $DOTFILES_DIR/setup.sh
-[ -x "$DOTFILES_DIR/omarchy/omarchy-debloat.sh" ] && "$DOTFILES_DIR/omarchy/omarchy-debloat.sh" --yes
+[ -x $script ] && exec $script --yes${*:+$(printf ' %q' "$@")}
+echo "dotfiles-debloat: $script is gone, run setup.sh again from the dotfiles repository" >&2
 EOF
+
     omarchy-hook-install post-update "$dir/dotfiles-debloat"
     rm -rf "$dir"
 }
@@ -765,14 +768,18 @@ setup_arch() {
             echo "Skipping the debloat pass (--no-debloat)."
         elif [ -x "$DOTFILES_DIR/omarchy/omarchy-debloat.sh" ]; then
             case "$DEBLOAT_GROUPS" in
-            skip) echo "Keeping Omarchy's preinstalled apps." ;;
-            default) "$DOTFILES_DIR/omarchy/omarchy-debloat.sh" --yes ;;
-            all) "$DOTFILES_DIR/omarchy/omarchy-debloat.sh" --yes --all ;;
-            *)
-                read -r -a dgroups <<<"$DEBLOAT_GROUPS"
-                "$DOTFILES_DIR/omarchy/omarchy-debloat.sh" --yes "${dgroups[@]}" ;;
+            skip | default) ;;
+            all) dgroups=(--all) ;;
+            *) read -r -a dgroups <<<"$DEBLOAT_GROUPS" ;;
             esac
-            [ "$DEBLOAT_GROUPS" = skip ] || install_debloat_hook
+
+            if [ "$DEBLOAT_GROUPS" = skip ]; then
+                echo "Keeping Omarchy's preinstalled apps."
+                rm -f "$HOME/.config/omarchy/hooks/post-update.d/dotfiles-debloat"
+            else
+                "$DOTFILES_DIR/omarchy/omarchy-debloat.sh" --yes "${dgroups[@]}"
+                install_debloat_hook "${dgroups[@]}"
+            fi
         fi
         disable_omarchy_snapshots
     else

@@ -51,29 +51,61 @@ launchers, and the CUPS printing stack.
 Default groups:
 
 - `apps`: 1Password, Signal, Spotify, Typora, LibreOffice, OBS Studio,
-  Kdenlive, Pinta, Xournal++, LocalSend, Aether, cliamp, try.
+  Kdenlive, Pinta, Xournal++, LocalSend, Aether, cliamp, try, and Omarchy's
+  own apps (Moonlight, Omacut, Monologue, Omacalc, Omawrite, Hype, Signed).
 - `webapps`: the Chromium web app launchers, and the Hyprland bindings that
   point at them.
-- `agents`: the npx stubs for codex, gemini, copilot, opencode,
-  playwright-cli, pi, ghui.
+- `agents`: the other coding agents. These are the npx stubs and mise
+  wrappers in `~/.local/bin` (codex, kimi, cursor-agent, ...), the Cursor CLI
+  from Cursor's installer (`~/.local/share/cursor-agent`), and Omarchy's
+  lazy mise tools (`/etc/mise/conf.d/omarchy-tools.toml`). Claude Code is
+  installed natively first, so it stays.
+- `nvim`: Omarchy's LazyVim, but only when you have not changed it. See
+  below.
 
-Optional groups: `gnome-apps`, `input-method` (fcitx5), `dotnet`, and `nvim`
-(Omarchy's LazyVim). `--help` lists them all.
+Optional groups: `gnome-apps`, `input-method` (fcitx5), `dotnet`. `--help`
+lists them all.
+
+### Running it again
+
+The debloat runs on every `setup.sh` run and after every `omarchy update`, so
+it only ever removes what Omarchy added, and never your own changes:
+
+- The opt-out marker. Omarchy's own `omarchy-remove-preinstalls` touches
+  `~/.local/state/omarchy/preinstalls-removed`, and the debloat does the same.
+  Migrations check that file and then do not install new apps or agent
+  wrappers (kimi, cursor-agent, Monologue, Hype, Signed). Hyprland reads it
+  and turns off the preinstalled-app bindings. Without it, every update
+  brought apps back.
+- Omarchy's mise tools are turned off with `omarchy-mise-default-tools
+  disable`, which adds one line to `~/.config/mise/miserc.toml`.
+  `omarchy-mise-default-tools enable` undoes it. Tools in your own mise config
+  stay.
+- An agent file is removed only when its contents show that Omarchy or
+  Cursor's installer wrote it. A file of your own with the same name stays.
+- Neovim: `~/.config/nvim` moves aside only when every file in it matches
+  `/usr/share/omarchy-nvim/config`. `lazy-lock.json`, the theme files Omarchy
+  manages, backups, and `plugin/dotfiles.lua` are not compared. After the
+  move, `setup.sh` installs kickstart.nvim. A LazyVim you changed stays, and
+  so does `omarchy-nvim`, so Omarchy's migrations keep it up to date. A
+  kickstart config has no `lazyvim.json`, so it is never moved.
+- The hook runs the groups you chose in `setup.sh`. If the repository moves,
+  the hook prints that `setup.sh` must run again, and `setup.sh` rewrites it.
+  Answer `skip` and the hook is removed.
 
 `pacman -Rns` gets only the packages that are installed, so one missing
 package cannot abort the transaction. Orphans are removed afterwards.
 
 - The agent stubs are removed only when they are npx wrappers written by
   `omarchy-npx-install`, never a binary you installed yourself.
-- Keybindings: the removed apps still have keybindings. On current Omarchy
-  (Lua config), the script sets `omarchy_preinstalled_bindings = false` in
-  `~/.config/hypr/hyprland.lua` (backup: `hyprland.lua.bak.<timestamp>`, and the same for `bindings.lua`), and adds Tmux
-  (SUPER ALT RETURN) and Docker (SUPER SHIFT D) back to `bindings.lua`. On
-  older Omarchy, `bindings.conf` is replaced with Omarchy's
-  `plain-bindings.conf` plus the same two bindings.
+- Keybindings: the marker turns off the preinstalled-app bindings. Tmux
+  (SUPER ALT RETURN), Docker (SUPER SHIFT D), and Obsidian (SUPER SHIFT O) are
+  among them, so they are added back to `~/.config/hypr/bindings.lua` once
+  (backup: `bindings.lua.bak.<timestamp>`). On older Omarchy, `bindings.conf`
+  is replaced with Omarchy's `plain-bindings.conf` plus Tmux and Docker.
 - Post-update hook: `omarchy update` runs migrations and then
-  `omarchy-hook post-update`, and migrations can add apps back (cliamp and
-  spotify arrived that way). So `setup.sh` installs
+  `omarchy-hook post-update`. Some migrations add packages even with the
+  marker (Omacalc arrived that way). So `setup.sh` installs
   `~/.config/omarchy/hooks/post-update.d/dotfiles-debloat`, which runs the
   debloat again. Delete that file to stop it.
 

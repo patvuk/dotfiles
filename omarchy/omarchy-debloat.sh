@@ -2,8 +2,13 @@
 
 set -uo pipefail
 
-DEFAULT_GROUPS=(apps webapps agents)
-OPTIONAL_GROUPS=(gnome-apps input-method dotnet nvim)
+DEFAULT_GROUPS=(apps webapps agents nvim)
+OPTIONAL_GROUPS=(gnome-apps input-method dotnet)
+
+STATE="$HOME/.local/state/omarchy"
+MARKER="$STATE/preinstalls-removed"
+NVIM="$HOME/.config/nvim"
+NVIM_PKG=/usr/share/omarchy-nvim/config
 
 DRY=0 YES=0
 groups=()
@@ -26,27 +31,30 @@ Default groups: ${DEFAULT_GROUPS[*]}
 Optional      : ${OPTIONAL_GROUPS[*]}
 
   apps          1Password, Signal, Spotify, Typora, LibreOffice, OBS, Kdenlive,
-                Pinta, Xournal++, LocalSend, Aether, cliamp, try
+                Pinta, Xournal++, LocalSend, Aether, cliamp, try, Moonlight,
+                Omacut, Monologue, Omacalc, Omawrite, Hype, Signed
   webapps       Chromium web-app launchers (HEY, X, YouTube, ...) and the Hyprland
                 bindings that point at them (swapped for Omarchy's plain-bindings)
-  agents        npx stubs for the other coding agents (codex, gemini, copilot,
-                opencode, playwright-cli, pi, ghui) — claude-code stays
+  agents        the other coding agents: Omarchy's mise tools and wrappers
+                (codex, cursor-agent, kimi, ...) and the Cursor CLI;
+                claude-code stays (native install)
   gnome-apps    evince, sushi, gnome-calculator, gnome-disk-utility
   input-method  fcitx5 (only needed for CJK/IME input)
   dotnet        dotnet-runtime-9.0
-  nvim          omarchy-nvim (LazyVim); moves ~/.config/nvim aside so setup.sh
-                can install kickstart.nvim instead
+  nvim          omarchy-nvim (LazyVim); an unchanged ~/.config/nvim moves aside
+                so setup.sh can install kickstart.nvim, a customized one stays
 EOF
 }
 
 pkgs_for() {
     case "$1" in
     apps)         echo "1password-beta 1password-cli aether cliamp typora spotify libreoffice-fresh
-                       xournalpp signal-desktop pinta obs-studio kdenlive localsend tobi-try" ;;
+                       xournalpp signal-desktop pinta obs-studio kdenlive localsend tobi-try
+                       moonlight-qt omacut monologue omacalc omawrite hype signed" ;;
     gnome-apps)   echo "evince sushi gnome-calculator gnome-disk-utility" ;;
     input-method) echo "fcitx5 fcitx5-gtk fcitx5-qt" ;;
     dotnet)       echo "dotnet-runtime-9.0" ;;
-    nvim)         echo "omarchy-nvim" ;;
+    nvim)         [ "$NVIM_STATE" = custom ] || echo "omarchy-nvim" ;;
     *)            echo "" ;;
     esac
 }
@@ -61,15 +69,43 @@ stubs() {
 }
 
 WEBAPP_EXEC='omarchy-launch-webapp|omarchy-launch-or-focus-webapp|omarchy-webapp-handler'
-AGENT_STUBS=(codex gemini copilot opencode playwright-cli pi ghui)
+AGENT_STUBS=(codex gemini copilot opencode playwright-cli pi ghui kimi cursor-agent muse)
+CURSOR_DIR="$HOME/.local/share/cursor-agent"
 
 agent_stubs() {
     local s f
     for s in "${AGENT_STUBS[@]}"; do
         f="$HOME/.local/bin/$s"
-        [ -f "$f" ] && grep -q 'mise where node@latest' "$f" && printf '%s\n' "$f"
+        [ -f "$f" ] && [ ! -L "$f" ] && grep -qE 'mise where node@latest|^mise use -g ' "$f" && printf '%s\n' "$f"
     done
-    return 0
+
+    [ -d "$CURSOR_DIR" ] || return 0
+    for s in agent cursor-agent; do
+        f="$HOME/.local/bin/$s"
+        [[ -L $f && $(readlink "$f") == "$CURSOR_DIR"/* ]] && printf '%s\n' "$f"
+    done
+    f="$HOME/.local/bin/cursor"
+    [ -f "$f" ] && grep -q 'local/bin/agent' "$f" && printf '%s\n' "$f"
+    printf '%s\n' "$CURSOR_DIR"
+}
+
+mise_tools_on() {
+    command -v omarchy-mise-default-tools >/dev/null && omarchy-mise-default-tools declares codex
+}
+
+nvim_state() {
+    [ -f "$NVIM/lazyvim.json" ] || { echo none; return; }
+    [ -d "$NVIM_PKG" ] || { echo custom; return; }
+
+    local f rel
+    while IFS= read -r -d '' f; do
+        rel="${f#"$NVIM"/}"
+        case "$rel" in
+        lazy-lock.json | *.bak.* | plugin/dotfiles.lua | lua/plugins/all-themes.lua) continue ;;
+        esac
+        cmp -s "$f" "$NVIM_PKG/$rel" || { echo custom; return; }
+    done < <(find "$NVIM" -type f -print0)
+    echo stock
 }
 
 remove_stubs() {
@@ -84,20 +120,19 @@ remove_stubs() {
 plainify_bindings() {
     local lua="$HOME/.config/hypr/hyprland.lua" binds="$HOME/.config/hypr/bindings.lua"
     if [ -f "$lua" ]; then
-        grep -q '^omarchy_preinstalled_bindings = false' "$lua" && return 0
-        grep -q '^require("default.hypr.omarchy")' "$lua" || return 0
-        info "Hyprland: preinstalled-app bindings off (backup: $lua.bak.$stamp)"
-        backup "$lua"
-        [ -f "$binds" ] && backup "$binds"
-        run sed -i 's/^require("default.hypr.omarchy")/omarchy_preinstalled_bindings = false\n&/' "$lua"
+        [ -f "$binds" ] || return 0
+        grep -q '"Tmux"' "$binds" && return 0
+        info "Hyprland: Tmux, Docker, Obsidian bindings kept (backup: $binds.bak.$stamp)"
+        backup "$binds"
         if ((DRY)); then
-            echo "  [dry-run] append Tmux + Docker bindings to $binds"
+            echo "  [dry-run] append Tmux, Docker, Obsidian bindings to $binds"
         else
             cat >>"$binds" <<'BINDS'
 
 -- Kept from Omarchy's preinstalled-app bindings (omarchy-debloat.sh)
 o.bind("SUPER + ALT + RETURN", "Tmux", { omarchy = "terminal-tmux" })
 o.bind("SUPER + SHIFT + D", "Docker", { tui = "omarchy-launch-docker-tui" })
+o.bind("SUPER + SHIFT + O", "Obsidian", { launch = "obsidian", focus = "^obsidian$" })
 BINDS
         fi
         [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] && command -v hyprctl >/dev/null && run hyprctl reload
@@ -150,6 +185,8 @@ done
 command -v pacman >/dev/null || die "Not an Arch system."
 [ -d /usr/share/omarchy ] || [ -d "$HOME/.local/share/omarchy" ] || die "Omarchy not found."
 
+NVIM_STATE="$(nvim_state)"
+
 remove=()
 for g in "${groups[@]}"; do
     for pkg in $(pkgs_for "$g"); do
@@ -165,13 +202,32 @@ if [ ${#remove[@]} -gt 0 ]; then
     printf '  %s\n' "${remove[@]}"
 fi
 has_group webapps && { info "Web app launchers"; stubs "$WEBAPP_EXEC" | sed 's|.*/|  |;s|\.desktop$||'; }
-has_group agents  && { info "Agent CLI stubs";   agent_stubs          | sed 's|.*/|  |'; }
+if has_group agents; then
+    info "Agent CLIs"
+    agent_stubs | sed "s|^$HOME/|  ~/|"
+    mise_tools_on && echo "  Omarchy's mise tools (/etc/mise/conf.d/omarchy-tools.toml), claude moves to its native install"
+fi
+if has_group nvim; then
+    case "$NVIM_STATE" in
+    stock)  info "Neovim"; echo "  Omarchy's LazyVim moves to ~/.config/nvim.omarchy.bak.$stamp" ;;
+    custom) info "Neovim"; echo "  ~/.config/nvim is a customized LazyVim, kept with omarchy-nvim" ;;
+    esac
+fi
 
 if ((DRY == 0)) && ((YES == 0)); then
     printf '\nProceed? [y/N] '
     read -r reply
     [[ $reply == [yY]* ]] || die "Aborted."
 fi
+
+for g in apps webapps agents; do
+    if has_group "$g" && [ ! -f "$MARKER" ]; then
+        info "Omarchy: preinstalls opted out ($MARKER)"
+        run mkdir -p "$STATE"
+        run touch "$MARKER"
+        break
+    fi
+done
 
 if [ ${#remove[@]} -gt 0 ]; then
     info "Removing packages"
@@ -181,13 +237,27 @@ fi
 has_group webapps && { info "Removing web app launchers"; stubs "$WEBAPP_EXEC" | remove_stubs; plainify_bindings; }
 
 if has_group agents; then
-    info "Removing agent CLI stubs"
-    while IFS= read -r f; do echo "  - ${f##*/}"; run rm -f "$f"; done < <(agent_stubs)
+    info "Removing agent CLIs"
+    while IFS= read -r f; do echo "  - ${f#"$HOME"/}"; run rm -rf "$f"; done < <(agent_stubs)
+
+    if mise_tools_on; then
+        if [ ! -x "$HOME/.local/bin/claude" ]; then
+            info "Claude Code (native install, outside Omarchy's mise tools)"
+            if ((DRY)); then echo "  [dry-run] curl -fsSL https://claude.ai/install.sh | bash"
+            else curl -fsSL https://claude.ai/install.sh | bash; fi
+        fi
+        if [ -x "$HOME/.local/bin/claude" ] || ((DRY)); then
+            info "Omarchy's mise tools off (omarchy-mise-default-tools enable undoes it)"
+            run omarchy-mise-default-tools disable || echo "  kept: omarchy-mise-default-tools disable failed" >&2
+        else
+            echo "  Omarchy's mise tools kept: the Claude Code install failed" >&2
+        fi
+    fi
 fi
 
-if has_group nvim && [ -d "$HOME/.config/nvim" ]; then
+if has_group nvim && [ "$NVIM_STATE" = stock ]; then
     info "Moving Omarchy's LazyVim config aside"
-    run mv "$HOME/.config/nvim" "$HOME/.config/nvim.omarchy.bak.$stamp"
+    run mv "$NVIM" "$HOME/.config/nvim.omarchy.bak.$stamp"
 fi
 
 orphans=()
