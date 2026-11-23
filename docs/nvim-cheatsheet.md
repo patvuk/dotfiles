@@ -23,6 +23,7 @@ and plugin defaults are left out. `<Space>` is the leader key.
 | `<Space>bd` | Delete the buffer; closes the tab when it is the tab's only editor window |
 | `<Space>yr` | Copy the file's path, relative to the project root |
 | `<Space>ya` | Copy the file's absolute path |
+| `<Space>yy` | Copy the whole buffer |
 
 ## Tabs
 

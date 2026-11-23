@@ -146,6 +146,7 @@ local function copy_file_path(absolute)
 end
 vim.keymap.set('n', '<leader>yr', function() copy_file_path(false) end, { desc = '[Y]ank [R]elative path' })
 vim.keymap.set('n', '<leader>ya', function() copy_file_path(true) end, { desc = '[Y]ank [A]bsolute path' })
+vim.keymap.set('n', '<leader>yy', '<cmd>%y+<CR>', { desc = '[Y]ank the whole buffer' })
 
 local watchers = {}
 local function unwatch(buf)

@@ -13,6 +13,7 @@ The keys that `nvim/dotfiles.lua` adds or changes. `<Space>` is the leader key.
 | `<Space>bd` | Close the buffer, and its tab if the tab has one window |
 | `Ctrl-o` / `Ctrl-p` | Back / forward through files only, to where you left each one |
 | `<Space>yr` / `<Space>ya` | Copy the file's path to the clipboard: relative to the project / absolute |
+| `<Space>yy` | Copy the whole buffer to the clipboard |
 
 ## Tabs
 
